@@ -29,6 +29,7 @@ MainWindow::MainWindow(const QString& serverIp, quint16 serverPort, const QStrin
     // connect(socket, &QTcpSocket::errorOccurred, this, &MainWindow::onErrorOccurred);
 
 
+    //서버와 연결 시도중 잠깐이라도 표시하기
     qDebug() << "Connecting to server:" << client_serverIp << ":" << client_serverPort;
     socket->connectToHost(QHostAddress(client_serverIp), client_serverPort);
 
@@ -45,6 +46,7 @@ MainWindow::~MainWindow()
 
 void MainWindow::connected()
 {
+    //연결된 콘솔 대신에 접속 중인 표시
     qDebug() << "Connected to server.";
 
 
@@ -102,6 +104,20 @@ void MainWindow::connected()
 
 void MainWindow::readyRead()
 {
+
+    // 추가할 내용
+    // USER_LIST, USER_JOIN, USER_LEAVE 각각 처리하기
+    //
+
     QByteArray data = socket->readAll();
     qDebug() << "Received from server:" << data;
 }
+
+
+
+
+
+// 추가할 내용
+// 로그아웃 버튼으로 연결 끊을 시 UI접속중 아이콘? 이나 상태 변경 해주기
+//
+
