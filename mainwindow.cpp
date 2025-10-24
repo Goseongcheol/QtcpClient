@@ -2,6 +2,19 @@
 #include "ui_mainwindow.h"
 
 #include <QHostAddress>
+#include <QDataStream>
+
+#pragma pack(push, 1)
+struct LoginPacket {
+    quint16 size;
+    quint16 type;
+    char userId[32];
+    char userName[32];
+    char ip[16];
+    quint16 port;
+};
+#pragma pack(pop)
+
 
 MainWindow::MainWindow(const QString& serverIp, quint16 serverPort, const QString& clientIp, quint16 clientPort, QString userId, QString userName, QWidget *parent)
     : QMainWindow(parent)
@@ -45,17 +58,34 @@ void MainWindow::connected()
 {
     qDebug() << "Connected to server.";
 
-    QString msg = QString("id=%1 name=%2 ip=%3 port=%4\n")
-                      .arg(m_userId)
-                      .arg(m_userName)
-                      .arg(m_clientIp)
-                      .arg(m_clientPort);
+    LoginPacket pkt = {};
+    pkt.type = 1; // 로그인 패킷
+    pkt.port = m_clientPort;
 
-    socket->write(msg.toUtf8());
+    // 문자열을 C-style로 변환 후 구조체에 복사
+    QByteArray idBytes = m_userId.toUtf8();
+    QByteArray nameBytes = m_userName.toUtf8();
+    QByteArray ipBytes = m_clientIp.toUtf8();
+
+    memcpy(pkt.userId, idBytes.constData(), qMin(idBytes.size(), 31));
+    memcpy(pkt.userName, nameBytes.constData(), qMin(nameBytes.size(), 31));
+    memcpy(pkt.ip, ipBytes.constData(), qMin(ipBytes.size(), 15));
+
+    pkt.size = sizeof(LoginPacket);
+
+    // 전송
+    socket->write(reinterpret_cast<const char*>(&pkt), sizeof(pkt));
     socket->flush();
 
-    qDebug() << "Sent to server:" << msg.trimmed();
+    qDebug() << "Sent LoginPacket:"
+             << "\n  type =" << pkt.type
+             << "\n  id =" << pkt.userId
+             << "\n  name =" << pkt.userName
+             << "\n  ip =" << pkt.ip
+             << "\n  port =" << pkt.port
+             << "\n  size =" << pkt.size;
 }
+
 
 void MainWindow::readyRead()
 {
