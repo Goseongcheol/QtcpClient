@@ -4,17 +4,6 @@
 #include <QHostAddress>
 #include <QDataStream>
 
-#pragma pack(push, 1)
-struct LoginPacket {
-    quint16 size;
-    quint16 type;
-    char userId[32];
-    char userName[32];
-    char ip[16];
-    quint16 port;
-};
-#pragma pack(pop)
-
 
 MainWindow::MainWindow(const QString& serverIp, quint16 serverPort, const QString& clientIp, quint16 clientPort, QString userId, QString userName, QWidget *parent)
     : QMainWindow(parent)
@@ -22,25 +11,26 @@ MainWindow::MainWindow(const QString& serverIp, quint16 serverPort, const QStrin
 
 {
     ui->setupUi(this);
-    // 멤버 변수 저장
-    m_serverIp = serverIp;
-    m_serverPort = serverPort;
-    m_clientIp = clientIp;
-    m_clientPort = clientPort;
-    m_userId = userId;
-    m_userName = userName;
 
-    // QTcpSocket 생성 (서버와 동일한 패턴)
+    //나중에도 계속 써야하는 정보들
+    client_serverIp = serverIp; // 주기적으로 재접속
+    client_serverPort = serverPort; // 주기적으로 재접속
+    client_clientIp = clientIp; // 정보전송시
+    client_clientPort = clientPort; // 정보전송시
+    client_userId = userId; // 정보전송시
+    client_userName = userName; // 정보전송시
+
+
     socket = new QTcpSocket(this);
 
-    // 시그널 연결
+
     connect(socket, &QTcpSocket::connected, this, &MainWindow::connected);
     connect(socket, &QTcpSocket::readyRead, this, &MainWindow::readyRead);
     // connect(socket, &QTcpSocket::errorOccurred, this, &MainWindow::onErrorOccurred);
 
-    // 서버 접속 시도
-    qDebug() << "Connecting to server:" << m_serverIp << ":" << m_serverPort;
-    socket->connectToHost(QHostAddress(m_serverIp), m_serverPort);
+
+    qDebug() << "Connecting to server:" << client_serverIp << ":" << client_serverPort;
+    socket->connectToHost(QHostAddress(client_serverIp), client_serverPort);
 
 
 }
@@ -53,37 +43,60 @@ MainWindow::~MainWindow()
     delete socket;
 }
 
-
 void MainWindow::connected()
 {
     qDebug() << "Connected to server.";
 
-    LoginPacket pkt = {};
-    pkt.type = 1; // 로그인 패킷
-    pkt.port = m_clientPort;
 
-    // 문자열을 C-style로 변환 후 구조체에 복사
-    QByteArray idBytes = m_userId.toUtf8();
-    QByteArray nameBytes = m_userName.toUtf8();
-    QByteArray ipBytes = m_clientIp.toUtf8();
+    //.arg는 3개씩 묶기 아니면 거슬리게 경고창 나옴
+    QString dataStr = QString("%1;%2;%3;%4")
+                          .arg(client_userId,
+                               client_userName,
+                               client_clientIp)
+                          .arg(client_clientPort);
+    QByteArray data = dataStr.toUtf8();
 
-    memcpy(pkt.userId, idBytes.constData(), qMin(idBytes.size(), 31));
-    memcpy(pkt.userName, nameBytes.constData(), qMin(nameBytes.size(), 31));
-    memcpy(pkt.ip, ipBytes.constData(), qMin(ipBytes.size(), 15));
 
-    pkt.size = sizeof(LoginPacket);
+    QByteArray packet;
+    quint8 STX = 0x02;
+    quint8 CMD = 0x01; // connect CMD 로 0X01
+    quint16 len = data.size();
+    quint8 ETX = 0x03;
 
-    // 전송
-    socket->write(reinterpret_cast<const char*>(&pkt), sizeof(pkt));
+
+    packet.append(STX);
+    packet.append(CMD);
+
+
+    packet.append(static_cast<char>(len & 0xFF));
+    packet.append(static_cast<char>((len >> 8) & 0xFF));
+
+
+    packet.append(data);
+
+    quint8 lenL = len & 0xFF;
+    quint8 lenH = (len >> 8) & 0xFF;
+
+    quint32 sum = CMD + lenH + lenL;
+
+
+    // 기존 c:data 였지만 std::as_const(data) 로 변경 : 이유 - for문에서 data를 수정하지않으려는 안정장치. 기능적차이 x 코드 안정성 상승
+    for (unsigned char c : std::as_const(data))
+        sum += c;
+
+    quint8 checksum = static_cast<quint8>(sum % 256);
+    packet.append(checksum);
+
+    // ETX
+    packet.append(ETX);
+
+
+
+    socket->write(packet);
     socket->flush();
 
-    qDebug() << "Sent LoginPacket:"
-             << "\n  type =" << pkt.type
-             << "\n  id =" << pkt.userId
-             << "\n  name =" << pkt.userName
-             << "\n  ip =" << pkt.ip
-             << "\n  port =" << pkt.port
-             << "\n  size =" << pkt.size;
+    qDebug() << "Sent Packet (hex):" << packet.toHex(' ');
+    qDebug() << "Data:" << dataStr;
 }
 
 

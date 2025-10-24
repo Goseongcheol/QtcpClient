@@ -29,11 +29,11 @@ private:
     Ui::MainWindow *ui;
     QTcpSocket *socket;
 
-    QString m_serverIp;
-    quint16 m_serverPort;
-    QString m_clientIp;
-    quint16 m_clientPort;
-    QString m_userId;
-    QString m_userName;
+    QString client_serverIp;
+    quint16 client_serverPort;
+    QString client_clientIp;
+    quint16 client_clientPort;
+    QString client_userId;
+    QString client_userName;
 };
 #endif // MAINWINDOW_H
