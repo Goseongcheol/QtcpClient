@@ -63,7 +63,7 @@
      </item>
     </layout>
    </widget>
-   <widget class="QPushButton" name="pushButton">
+   <widget class="QPushButton" name="loginButton">
     <property name="geometry">
      <rect>
       <x>560</x>
@@ -76,7 +76,7 @@
      <string>로그인</string>
     </property>
    </widget>
-   <widget class="QPushButton" name="pushButton_2">
+   <widget class="QPushButton" name="logoutButton">
     <property name="geometry">
      <rect>
       <x>650</x>
@@ -86,10 +86,10 @@
      </rect>
     </property>
     <property name="text">
-     <string>PushButton</string>
+     <string>로그아웃</string>
     </property>
    </widget>
-   <widget class="QLabel" name="label_3">
+   <widget class="QLabel" name="statsusLabel">
     <property name="geometry">
      <rect>
       <x>20</x>
@@ -99,7 +99,7 @@
      </rect>
     </property>
     <property name="text">
-     <string>접속상태</string>
+     <string/>
     </property>
    </widget>
    <widget class="QLabel" name="UserIdLabel">
@@ -135,7 +135,7 @@
      <x>0</x>
      <y>0</y>
      <width>757</width>
-     <height>21</height>
+     <height>17</height>
     </rect>
    </property>
   </widget>

@@ -20,7 +20,29 @@ MainWindow::MainWindow(const QString& serverIp, quint16 serverPort, const QStrin
     client_userId = userId; // 정보전송시
     client_userName = userName; // 정보전송시
 
+}
 
+MainWindow::~MainWindow()
+{
+    delete ui;
+
+    //
+    //소켓이 이미 close()됐다면 그냥 넘어가는 코드 추가 if 문 예정
+    //
+
+    // if(socket) // socket이  open일때만 종료하기 추가
+    // {
+    //     socket->disconnectFromHost();
+    //     socket->close();
+    //     delete socket;
+    // }
+
+}
+
+
+//로그인 버튼 클릭으로 연결시도
+void MainWindow::on_loginButton_clicked()
+{
     socket = new QTcpSocket(this);
 
 
@@ -28,21 +50,25 @@ MainWindow::MainWindow(const QString& serverIp, quint16 serverPort, const QStrin
     connect(socket, &QTcpSocket::readyRead, this, &MainWindow::readyRead);
     // connect(socket, &QTcpSocket::errorOccurred, this, &MainWindow::onErrorOccurred);
 
-
-    //서버와 연결 시도중 잠깐이라도 표시하기
     qDebug() << "Connecting to server:" << client_serverIp << ":" << client_serverPort;
     socket->connectToHost(QHostAddress(client_serverIp), client_serverPort);
-
-
+    ui->statsusLabel->setText("온라인");
 }
 
-MainWindow::~MainWindow()
+
+// 로그아웃 버튼 클릭
+void MainWindow::on_logoutButton_clicked()
 {
-    delete ui;
+    //
+    // 이미 로그아웃일때 if 문 추가하기
+    //
     socket->disconnectFromHost();
     socket->close();
     delete socket;
+    ui->statsusLabel->setText("오프라인");
 }
+
+
 
 void MainWindow::connected()
 {
@@ -114,10 +140,8 @@ void MainWindow::readyRead()
 }
 
 
-
-
-
 // 추가할 내용
 // 로그아웃 버튼으로 연결 끊을 시 UI접속중 아이콘? 이나 상태 변경 해주기
 //
+
 
