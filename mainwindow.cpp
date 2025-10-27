@@ -75,8 +75,6 @@ void MainWindow::on_loginButton_clicked()
 
 void MainWindow::connected()
 {
-    //연결된 콘솔 대신에 접속 중인 표시
-    qDebug() << "Connected to server.";
     //.arg는 3개씩 묶기 아니면 거슬리게 경고창 나옴
     QString dataStr = QString("%1%2%3%4")
                           .arg(client_userId,
@@ -88,24 +86,20 @@ void MainWindow::connected()
 
     QByteArray packet;
     quint8 STX = 0x02;
-    quint8 CMD = 0x01; // connect CMD 로 0X01
+    quint8 CMD = 0x01;
     quint16 len = data.size();
     quint8 ETX = 0x03;
-
 
     packet.append(STX);
     packet.append(CMD);
 
-
     packet.append(static_cast<char>(len & 0xFF));
     packet.append(static_cast<char>((len >> 8) & 0xFF));
-
 
     packet.append(data);
 
     quint8 lenL = len & 0xFF;
     quint8 lenH = (len >> 8) & 0xFF;
-
     quint32 sum = CMD + lenH + lenL;
 
 
@@ -114,26 +108,22 @@ void MainWindow::connected()
         sum += c;
 
     quint8 checksum = static_cast<quint8>(sum % 256);
+
     packet.append(checksum);
-
-    // ETX
     packet.append(ETX);
-
-
 
     socket->write(packet);
     socket->flush();
 
-    qDebug() << "Sent Packet (hex):" << packet.toHex(' ');
-    qDebug() << "Data:" << dataStr;
+    writeLog(CMD,dataStr,logFilePath);
 }
 
 
 void MainWindow::readyRead()
 {
-
+    //
     // 추가할 내용
-    // USER_LIST, USER_JOIN, USER_LEAVE 각각 처리하기
+    // USER_LIST, USER_JOIN, USER_LEAVE,CHAT_MSG,Ack,Nack 각각 처리하기
     //
 
     QByteArray data = socket->readAll();
@@ -141,26 +131,53 @@ void MainWindow::readyRead()
 }
 
 
-//로그 표시 ( ui + 로그파일 같이 작성) 매개변수에 필요한 정보들 추려서 추가 ex) cmd ,data
-void MainWindow::writeLog(QString cmd, QString data, const QString& filePath)
+// 로그 표시 ( ui + 로그파일 같이 작성) 매개변수에 필요한 정보들 추려서 추가 ex) cmd ,data
+// 2025-10-27 CMD는 추가 완료
+void MainWindow::writeLog(quint8 cmd, QString data, const QString& filePath)
 {
+    //data 처리 방식이나 후반 작성 해보다가 switch 고려중
+
+    QString logCmd = "";
+    if( cmd == 0x01){
+        logCmd = "[CONNECT]";
+    }else if(cmd == 0x02){
+        logCmd = "[LIST]";
+    }else if(cmd == 0x03){
+        logCmd = "[JOIN]";
+    }else if(cmd == 0x04){
+        logCmd = "[LEAVE]";
+    }else if(cmd == 0x08){
+        logCmd = "[ack]";
+    }else if(cmd == 0x09){
+        logCmd = "[nack]";
+    }else if(cmd == 0x12){
+        logCmd = "[CHAT_MSG]";
+    }else {
+        logCmd = "[NONE]";
+    }
+
     QDateTime currentDateTime = QDateTime::currentDateTime();
     QString logTime = currentDateTime.toString("[yyyy-MM-dd HH:mm:ss]"); //폴더에 날짜가 표시 되지만 프로그램을 며칠동안 종료하지 않을 경우에 날짜를 명확하게 확인하려고 yyyy-MM-dd 표시
     QString uiLogData = QString("%1\n[%2:%3]\n%4 %5")
-                          .arg(logTime,client_clientIp,
-                               QString::number(client_clientPort))
-                          .arg(cmd,
-                               data);
+                          .arg(logTime,
+                                client_clientIp,
+                                QString::number(client_clientPort)) // port가 quint16 으로 작성했었음 오류 나옴
+                          .arg(logCmd,
+                                data);
 
     QString logData = QString("%1[%2:%3]%4 %5")
-                            .arg(logTime,client_clientIp,
-                                 QString::number(client_clientPort))
-                            .arg(cmd,
-                                 data);
+                            .arg(logTime,
+                                client_clientIp,
+                                QString::number(client_clientPort))
+                            .arg(logCmd,
+                                data);
     // ui->logText->append(logTime + "[" + client_clientIp + ":" + client_clientPort + "]" + cmd + data );
 
     ui->logText->append(uiLogData);
 
+
+
+    //로그파일 열고 적기
     QFileInfo fileInfo(filePath);
     QDir dir;
     dir.mkpath(fileInfo.path());
@@ -185,29 +202,13 @@ void MainWindow::writeLog(QString cmd, QString data, const QString& filePath)
 void MainWindow::on_sendButton_clicked()
 {
     //
+    //textEdit 내용 추출해서 현 testCMD를 0x12[chat]으로 변경해서 패킷만들어서 보내기 추가
     //채팅 보내기
     //
-    QString logCmd = "";
-    QString testCMD = "0.01";
+    //
+    quint8 testCMD = 0x12;
     QString testData = "Hello";
 
-    if( testCMD == "0.01"){
-        logCmd = "[CONN]";
-    }else if(testCMD == "0.02"){
-        logCmd = "[LIST]";
-    }else {
-        logCmd = "[NONE]";
-    }
-
-    // switch 사용하려면 testCmd를 정수로 매핑해서 사용해야함 .  나중에 로그말고 송수신하거나 사용하는게 많다면 매핑 고려 일단은 if else 사용 예정
-    // switch (testCMD)
-    // {
-    // case  "0.01" :
-    //     logCmd = "[SEND]";
-    //     break;
-    // }
-
-
-    writeLog(logCmd,testData,logFilePath);
+    writeLog(testCMD,testData,logFilePath);
 }
 

@@ -22,7 +22,7 @@ private slots:
     void connected();
     void readyRead();
 
-    void writeLog(QString CMD, QString data, const QString& filePath);
+    void writeLog(quint8 CMD, QString data, const QString& filePath);
 
     void on_loginButton_clicked();
     void on_sendButton_clicked();
