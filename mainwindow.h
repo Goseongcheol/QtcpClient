@@ -28,13 +28,13 @@ private slots:
 
 
     void on_loginButton_clicked();
-    void on_logoutButton_clicked();
     void on_sendButton_clicked();
 
 private:
     Ui::MainWindow *ui;
     QTcpSocket *socket;
 
+    bool isLogin = false;
     QString client_serverIp;
     quint16 client_serverPort;
     QString client_clientIp;
