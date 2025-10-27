@@ -1,8 +1,10 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
-
 #include <QHostAddress>
 #include <QDataStream>
+#include <QDateTime>
+#include <QFileInfo>
+#include <QDir>
 
 
 MainWindow::MainWindow(const QString& serverIp, quint16 serverPort, const QString& clientIp, quint16 clientPort, QString userId, QString userName,  const QString& filePath, QWidget *parent)
@@ -11,6 +13,7 @@ MainWindow::MainWindow(const QString& serverIp, quint16 serverPort, const QStrin
 
 {
     ui->setupUi(this);
+
 
     //나중에도 계속 써야하는 정보들
     client_serverIp = serverIp; // 주기적으로 재접속
@@ -52,11 +55,9 @@ void MainWindow::on_loginButton_clicked()
         ui->statusLabel->setText("연결 중");
         ui->loginButton->setText("로그아웃");
         isLogin = true;
-
         //
         //여기에 타이머? 활성화 추가( 접속후 자동 재연결 시도)
         //
-
     }else{
         socket->disconnectFromHost();
         socket->close();
@@ -64,11 +65,9 @@ void MainWindow::on_loginButton_clicked()
         ui->statusLabel->setText("연결 해제");
         ui->loginButton->setText("로그인");
         isLogin = false;
-
         //
         //여기에 타이머 비활성화(그냥 없애기)
         //
-
     }
 
 }
@@ -78,8 +77,6 @@ void MainWindow::connected()
 {
     //연결된 콘솔 대신에 접속 중인 표시
     qDebug() << "Connected to server.";
-
-
     //.arg는 3개씩 묶기 아니면 거슬리게 경고창 나옴
     QString dataStr = QString("%1%2%3%4")
                           .arg(client_userId,
@@ -147,12 +144,40 @@ void MainWindow::readyRead()
 //로그 표시 ( ui + 로그파일 같이 작성) 매개변수에 필요한 정보들 추려서 추가 ex) cmd ,data
 void MainWindow::writeLog(QString cmd, QString data, const QString& filePath)
 {
-    QString logText = QString("%1%2%3").arg(cmd,data,filePath);
+    QDateTime currentDateTime = QDateTime::currentDateTime();
+    QString logTime = currentDateTime.toString("[yyyy-MM-dd HH:mm:ss]"); //폴더에 날짜가 표시 되지만 프로그램을 며칠동안 종료하지 않을 경우에 날짜를 명확하게 확인하려고 yyyy-MM-dd 표시
+    QString uiLogData = QString("%1\n[%2:%3]\n%4 %5")
+                          .arg(logTime,client_clientIp,
+                               QString::number(client_clientPort))
+                          .arg(cmd,
+                               data);
 
-    ui->logText->append(logText);
-    //여기에
-    // 로그파일 filepath로 받아와서 yyyymmdd.txt파일에 logText문자 write 하기
-    //
+    QString logData = QString("%1[%2:%3]%4 %5")
+                            .arg(logTime,client_clientIp,
+                                 QString::number(client_clientPort))
+                            .arg(cmd,
+                                 data);
+    // ui->logText->append(logTime + "[" + client_clientIp + ":" + client_clientPort + "]" + cmd + data );
+
+    ui->logText->append(uiLogData);
+
+    QFileInfo fileInfo(filePath);
+    QDir dir;
+    dir.mkpath(fileInfo.path());
+
+    QFile File(filePath);
+
+    if (File.open(QFile::WriteOnly | QFile::Append | QFile::Text))
+    {
+        //log에 데이터 형식 가공해서 바꿔 넣기
+        QTextStream SaveFile(&File);
+        SaveFile << logData << "\n";
+        File.close();
+    }
+    else
+    {
+        //error 처리
+    }
 }
 
 
@@ -162,8 +187,27 @@ void MainWindow::on_sendButton_clicked()
     //
     //채팅 보내기
     //
+    QString logCmd = "";
     QString testCMD = "0.01";
-    QString testData = "0001GSC";
-    writeLog(testCMD,testData,logFilePath);
+    QString testData = "Hello";
+
+    if( testCMD == "0.01"){
+        logCmd = "[CONN]";
+    }else if(testCMD == "0.02"){
+        logCmd = "[LIST]";
+    }else {
+        logCmd = "[NONE]";
+    }
+
+    // switch 사용하려면 testCmd를 정수로 매핑해서 사용해야함 .  나중에 로그말고 송수신하거나 사용하는게 많다면 매핑 고려 일단은 if else 사용 예정
+    // switch (testCMD)
+    // {
+    // case  "0.01" :
+    //     logCmd = "[SEND]";
+    //     break;
+    // }
+
+
+    writeLog(logCmd,testData,logFilePath);
 }
 

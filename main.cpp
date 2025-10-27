@@ -5,12 +5,12 @@
 #include <QTextStream>
 #include <QFile>
 #include <QDateTime>
-
+#include <QFileInfo>
+#include <QDir>
 
 int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
-
 
     QDateTime currentDateTime = QDateTime::currentDateTime();
 
@@ -18,8 +18,29 @@ int main(int argc, char *argv[])
     QString HH = currentDateTime.toString("HH");
     QString HHmmss = currentDateTime.toString("HHmmss");
 
+    QString filePath = QString("/log/%1/%2/%3.txt").arg(yyyymmdd,HH,HHmmss);
+    QString nowTime = QString("%1").arg(currentDateTime.toString("yyyy-MM-dd HH:mm:ss"));
+    QString ApplicationPath = QApplication::applicationDirPath();
+    QString fullPath = ApplicationPath + filePath;
 
-    QString filePath = QString("\n%1%2%3").arg(yyyymmdd,HH,HHmmss);
+    QFileInfo fileInfo(fullPath);
+    QDir dir;
+    dir.mkpath(fileInfo.path());
+
+    QFile File(fullPath);
+
+    if (File.open(QFile::WriteOnly | QFile::Append | QFile::Text))
+    {
+        QTextStream SaveFile(&File);
+        SaveFile << nowTime << " application start" << "\n";
+        File.close();
+    }
+    else
+    {
+        //error 처리
+    }
+
+
 
     // 실행 경로의 config.ini 파일 읽어오기
     QSettings settings("config.ini", QSettings::IniFormat);
@@ -36,16 +57,8 @@ int main(int argc, char *argv[])
     QString userName = settings.value("USERNAME").toString();
     settings.endGroup();
 
-
-
-
-    //여기에 로그 파일 경로 생성 만들기
-
-    MainWindow w(serverIp,serverPort,clientIp,clientPort,userId,userName,filePath);
+    MainWindow w(serverIp,serverPort,clientIp,clientPort,userId,userName,fullPath);
     w.show();
-
-
-
 
     return a.exec();
 }
