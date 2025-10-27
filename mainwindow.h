@@ -15,7 +15,7 @@ class MainWindow : public QMainWindow
     Q_OBJECT
 
 public:
-    MainWindow(const QString& serverIp, quint16 serverPort, const QString& clientIp, quint16 clientPort, QString userId, QString userName,QWidget *parent = nullptr);
+    MainWindow(const QString& serverIp, quint16 serverPort, const QString& clientIp, quint16 clientPort, QString userId, QString userName, const QString& filePath, QWidget *parent = nullptr);
     ~MainWindow();
 
 
@@ -24,10 +24,12 @@ private slots:
     void connected();
     void readyRead();
 
+    void writeLog(QString CMD, QString data, const QString& filePath);
+
 
     void on_loginButton_clicked();
-
     void on_logoutButton_clicked();
+    void on_sendButton_clicked();
 
 private:
     Ui::MainWindow *ui;
@@ -39,5 +41,6 @@ private:
     quint16 client_clientPort;
     QString client_userId;
     QString client_userName;
+    QString logFilePath;
 };
 #endif // MAINWINDOW_H

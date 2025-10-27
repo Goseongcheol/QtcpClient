@@ -5,7 +5,7 @@
 #include <QDataStream>
 
 
-MainWindow::MainWindow(const QString& serverIp, quint16 serverPort, const QString& clientIp, quint16 clientPort, QString userId, QString userName, QWidget *parent)
+MainWindow::MainWindow(const QString& serverIp, quint16 serverPort, const QString& clientIp, quint16 clientPort, QString userId, QString userName,  const QString& filePath, QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
 
@@ -19,7 +19,7 @@ MainWindow::MainWindow(const QString& serverIp, quint16 serverPort, const QStrin
     client_clientPort = clientPort; // 정보전송시
     client_userId = userId; // 정보전송시
     client_userName = userName; // 정보전송시
-
+    logFilePath = filePath;
 }
 
 MainWindow::~MainWindow()
@@ -29,7 +29,6 @@ MainWindow::~MainWindow()
     //
     //소켓이 이미 close()됐다면 그냥 넘어가는 코드 추가 if 문 예정
     //
-
     // if(socket) // socket이  open일때만 종료하기 추가
     // {
     //     socket->disconnectFromHost();
@@ -43,16 +42,23 @@ MainWindow::~MainWindow()
 //로그인 버튼 클릭으로 연결시도
 void MainWindow::on_loginButton_clicked()
 {
-    socket = new QTcpSocket(this);
 
+    //
+    //연결 실패 시 연결실패 처리 ex) 서버가 안켜져있을때
+    //
+    socket = new QTcpSocket(this);
 
     connect(socket, &QTcpSocket::connected, this, &MainWindow::connected);
     connect(socket, &QTcpSocket::readyRead, this, &MainWindow::readyRead);
     // connect(socket, &QTcpSocket::errorOccurred, this, &MainWindow::onErrorOccurred);
 
-    qDebug() << "Connecting to server:" << client_serverIp << ":" << client_serverPort;
+    // qDebug() << "Connecting to server:" << client_serverIp << ":" << client_serverPort;
     socket->connectToHost(QHostAddress(client_serverIp), client_serverPort);
     ui->statsusLabel->setText("온라인");
+
+    //
+    //여기에 타이머? 활성화 추가( 접속후 자동 재연결 시도)
+    //
 }
 
 
@@ -66,6 +72,10 @@ void MainWindow::on_logoutButton_clicked()
     socket->close();
     delete socket;
     ui->statsusLabel->setText("오프라인");
+
+    //
+    // 여기에 타이머 비활성화 접속중이 아니라면 주기적으로 연결시도하면 안됨.
+    //
 }
 
 
@@ -77,7 +87,7 @@ void MainWindow::connected()
 
 
     //.arg는 3개씩 묶기 아니면 거슬리게 경고창 나옴
-    QString dataStr = QString("%1;%2;%3;%4")
+    QString dataStr = QString("%1%2%3%4")
                           .arg(client_userId,
                                client_userName,
                                client_clientIp)
@@ -140,8 +150,29 @@ void MainWindow::readyRead()
 }
 
 
-// 추가할 내용
-// 로그아웃 버튼으로 연결 끊을 시 UI접속중 아이콘? 이나 상태 변경 해주기
-//
 
+
+//로그 표시 ( ui + 로그파일 같이 작성) 매개변수에 필요한 정보들 추려서 추가 ex) cmd ,data
+void MainWindow::writeLog(QString cmd, QString data, const QString& filePath)
+{
+    QString logText = QString("%1%2%3").arg(cmd,data,filePath);
+
+    ui->logText->append(logText);
+    //여기에
+    // 로그파일 filepath로 받아와서 yyyymmdd.txt파일에 logText문자 write 하기
+    //
+}
+
+
+//전송
+void MainWindow::on_sendButton_clicked()
+{
+    //
+    //채팅 보내기
+    //
+
+    QString testCMD = "0.01";
+    QString testData = "0001GSC";
+    writeLog(testCMD,testData,logFilePath);
+}
 
