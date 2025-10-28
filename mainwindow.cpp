@@ -6,6 +6,7 @@
 #include <QFileInfo>
 #include <QDir>
 #include <QTextEdit>
+#include <QTimer>
 
 MainWindow::MainWindow(const QString& serverIp, quint16 serverPort, const QString& clientIp, quint16 clientPort, QString userId, QString userName,  const QString& filePath, QWidget *parent)
     : QMainWindow(parent)
@@ -58,6 +59,7 @@ void MainWindow::on_loginButton_clicked()
         //
         //여기에 타이머? 활성화 추가( 접속후 자동 재연결 시도)
         //
+
     }else{
         // 위치 조정 생각해보기
         quint8 disConCmd = 0x13;
@@ -186,7 +188,8 @@ void MainWindow::on_sendButton_clicked()
         //로그아웃 상태 채팅 보낼때 효과 추가하기
     }else{
         // QString chatData = ui->chatText->toPlainText();
-        QString chatData = QString ("%1%2").arg(client_userId,ui->chatText->toPlainText());
+        QString chatData = QString ("%1%2").arg(client_userId,
+                                               ui->chatText->toPlainText());
         qint8 cmd = 0x12;
         sendProtocol(cmd,chatData);
         writeLog(cmd,chatData,logFilePath);
@@ -202,25 +205,30 @@ void MainWindow::sendProtocol(quint8 CMD, QString dataStr)
     quint8 STX = 0x02;
 
     quint16 len = data.size();
+      quint16 len1 = 12;
+    quint16 len2 = 0x04;
+
     quint8 ETX = 0x03;
 
     packet.append(STX);
     packet.append(CMD);
 
-    packet.append(static_cast<char>(len & 0xFF));
-    packet.append(static_cast<char>((len >> 8) & 0xFF));
+    packet.append(len);
 
-    // packet.append(data);
+    packet.append(data);
 
+    //체크섬 계산 LEN_L 하위 8비트 , LEN_H 상위 8비트
+    //0xFF = 11111111 로 LEN_L과 LEN_H와 AND연산하여 정해진 8비트만 추출, LEN_H같은 경우 LEN >> 8 로도 상위 8비트를 추출가능하지만 안정성을 위해 한번더 AND연산으로 확실한 상위8비트 추출
     quint8 lenL = len & 0xFF;
     quint8 lenH = (len >> 8) & 0xFF;
-    quint32 sum = CMD + lenH + lenL;
+    quint32 sum = CMD + lenH + lenL ;
 
-
-    // 기존 c:data 였지만 std::as_const(data) 로 변경 : 이유 - for문에서 data를 수정하지않으려는 안정장치. 기능적차이 x 코드 안정성 상승
-    for (unsigned char c : std::as_const(data))
+    // data의 크기를 순수 바이트 처리용 unsigned char로 for문을 돌려서 하나씩 크기를 더함 기존 sum에다가
+    for (unsigned char c : std::as_const(data)) {
         sum += c;
+    }
 
+    //체크섬 크기 1바이트 로 quint8
     quint8 checksum = static_cast<quint8>(sum % 256);
 
     packet.append(checksum);
