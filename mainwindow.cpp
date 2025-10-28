@@ -15,7 +15,7 @@ MainWindow::MainWindow(const QString& serverIp, quint16 serverPort, const QStrin
 {
     ui->setupUi(this);
 
-
+    //client IP와 Port사용 안함
     //나중에도 계속 써야하는 정보들
     client_serverIp = serverIp; // 주기적으로 재접속
     client_serverPort = serverPort; // 주기적으로 재접속
@@ -63,11 +63,9 @@ void MainWindow::on_loginButton_clicked()
     }else{
         // 위치 조정 생각해보기
         quint8 disConCmd = 0x13;
-        QString logoutData = QString("%1%2%3%4")
-                              .arg(client_userId,
-                                   client_userName,
-                                   client_clientIp)
-                              .arg(client_clientPort);
+        QString logoutData = QString("%1%2")
+                              .arg(client_userId
+                                      , client_userName);
         socket->disconnectFromHost();
         socket->close();
         delete socket;
@@ -86,11 +84,9 @@ void MainWindow::on_loginButton_clicked()
 void MainWindow::connected()
 {
     //.arg는 3개씩 묶기 아니면 거슬리게 경고창 나옴
-    QString dataStr = QString("%1%2%3%4")
+    QString dataStr = QString("%1%2")
                           .arg(client_userId,
-                               client_userName,
-                               client_clientIp)
-                          .arg(client_clientPort);
+                               client_userName);
 
     quint8 CMD = 0x01;
 
@@ -142,19 +138,15 @@ void MainWindow::writeLog(quint8 cmd, QString data, const QString& filePath)
 
     QDateTime currentDateTime = QDateTime::currentDateTime();
     QString logTime = currentDateTime.toString("[yyyy-MM-dd HH:mm:ss]"); //폴더에 날짜가 표시 되지만 프로그램을 며칠동안 종료하지 않을 경우에 날짜를 명확하게 확인하려고 yyyy-MM-dd 표시
-    QString uiLogData = QString("%1\n[%2:%3]\n%4 %5")
-                          .arg(logTime,
-                                client_clientIp,
-                                QString::number(client_clientPort)) // port가 quint16 으로 작성했었음 오류 나옴
-                          .arg(logCmd,
-                                data);
+    QString uiLogData = QString("%1\n%2 %3")
+                          .arg(logTime
+                                , logCmd
+                                , data);
 
-    QString logData = QString("%1[%2:%3]%4 %5")
-                            .arg(logTime,
-                                client_clientIp,
-                                QString::number(client_clientPort))
-                            .arg(logCmd,
-                                data);
+    QString logData = QString("%1%2 %3")
+                            .arg(logTime
+                               , logCmd
+                               , data);
     // ui->logText->append(logTime + "[" + client_clientIp + ":" + client_clientPort + "]" + cmd + data );
 
     ui->logText->append(uiLogData);
