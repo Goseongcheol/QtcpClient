@@ -157,8 +157,6 @@ void MainWindow::writeLog(quint8 cmd, QString data, const QString& filePath)
 
     ui->logText->append(uiLogData);
 
-
-
     //로그파일 열고 적기
     QFileInfo fileInfo(filePath);
     QDir dir;
@@ -212,7 +210,7 @@ void MainWindow::sendProtocol(quint8 CMD, QString dataStr)
     packet.append(static_cast<char>(len & 0xFF));
     packet.append(static_cast<char>((len >> 8) & 0xFF));
 
-    packet.append(data);
+    // packet.append(data);
 
     quint8 lenL = len & 0xFF;
     quint8 lenH = (len >> 8) & 0xFF;
@@ -230,6 +228,4 @@ void MainWindow::sendProtocol(quint8 CMD, QString dataStr)
 
     socket->write(packet);
     socket->flush();
-
-
 }
