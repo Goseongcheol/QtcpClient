@@ -205,16 +205,20 @@ void MainWindow::sendProtocol(quint8 CMD, QString dataStr)
     quint8 STX = 0x02;
 
     quint16 len = data.size();
-      quint16 len1 = 12;
-    quint16 len2 = 0x04;
 
     quint8 ETX = 0x03;
 
     packet.append(STX);
     packet.append(CMD);
 
-    packet.append(len);
 
+    //append 는 1바이트만 들어감 그래서 서버에서 인식이 안됨.
+    //packet.append(len);
+
+    packet.append((len >> 8) & 0xFF);
+    packet.append(len & 0xFF);
+
+    //여기서 data는 QByteArray로 지정해놔서 1바이트가 아닌데도 append 사용가능
     packet.append(data);
 
     //체크섬 계산 LEN_L 하위 8비트 , LEN_H 상위 8비트
