@@ -26,6 +26,7 @@ private slots:
 
     void on_loginButton_clicked();
     void on_sendButton_clicked();
+    void sendProtocol(quint8 CMD, QString datastr);
 
 private:
     Ui::MainWindow *ui;

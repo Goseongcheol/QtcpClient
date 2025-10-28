@@ -5,7 +5,7 @@
 #include <QDateTime>
 #include <QFileInfo>
 #include <QDir>
-
+#include <QTextEdit>
 
 MainWindow::MainWindow(const QString& serverIp, quint16 serverPort, const QString& clientIp, quint16 clientPort, QString userId, QString userName,  const QString& filePath, QWidget *parent)
     : QMainWindow(parent)
@@ -59,12 +59,20 @@ void MainWindow::on_loginButton_clicked()
         //여기에 타이머? 활성화 추가( 접속후 자동 재연결 시도)
         //
     }else{
+        // 위치 조정 생각해보기
+        quint8 disConCmd = 0x13;
+        QString logoutData = QString("%1%2%3%4")
+                              .arg(client_userId,
+                                   client_userName,
+                                   client_clientIp)
+                              .arg(client_clientPort);
         socket->disconnectFromHost();
         socket->close();
         delete socket;
         ui->statusLabel->setText("연결 해제");
         ui->loginButton->setText("로그인");
         isLogin = false;
+        writeLog(disConCmd,logoutData,logFilePath);
         //
         //여기에 타이머 비활성화(그냥 없애기)
         //
@@ -81,41 +89,13 @@ void MainWindow::connected()
                                client_userName,
                                client_clientIp)
                           .arg(client_clientPort);
-    QByteArray data = dataStr.toUtf8();
 
-
-    QByteArray packet;
-    quint8 STX = 0x02;
     quint8 CMD = 0x01;
-    quint16 len = data.size();
-    quint8 ETX = 0x03;
 
-    packet.append(STX);
-    packet.append(CMD);
-
-    packet.append(static_cast<char>(len & 0xFF));
-    packet.append(static_cast<char>((len >> 8) & 0xFF));
-
-    packet.append(data);
-
-    quint8 lenL = len & 0xFF;
-    quint8 lenH = (len >> 8) & 0xFF;
-    quint32 sum = CMD + lenH + lenL;
-
-
-    // 기존 c:data 였지만 std::as_const(data) 로 변경 : 이유 - for문에서 data를 수정하지않으려는 안정장치. 기능적차이 x 코드 안정성 상승
-    for (unsigned char c : std::as_const(data))
-        sum += c;
-
-    quint8 checksum = static_cast<quint8>(sum % 256);
-
-    packet.append(checksum);
-    packet.append(ETX);
-
-    socket->write(packet);
-    socket->flush();
+    sendProtocol(CMD,dataStr);
 
     writeLog(CMD,dataStr,logFilePath);
+
 }
 
 
@@ -152,6 +132,8 @@ void MainWindow::writeLog(quint8 cmd, QString data, const QString& filePath)
         logCmd = "[nack]";
     }else if(cmd == 0x12){
         logCmd = "[CHAT_MSG]";
+    }else if(cmd == 0x13){
+        logCmd = "[DISCONNECT]";
     }else {
         logCmd = "[NONE]";
     }
@@ -201,14 +183,53 @@ void MainWindow::writeLog(quint8 cmd, QString data, const QString& filePath)
 //전송
 void MainWindow::on_sendButton_clicked()
 {
-    //
-    //textEdit 내용 추출해서 현 testCMD를 0x12[chat]으로 변경해서 패킷만들어서 보내기 추가
-    //채팅 보내기
-    //
-    //
-    quint8 testCMD = 0x12;
-    QString testData = "Hello";
+    if(!isLogin)
+    {
+        //로그아웃 상태 채팅 보낼때 효과 추가하기
+    }else{
+        // QString chatData = ui->chatText->toPlainText();
+        QString chatData = QString ("%1%2").arg(client_userId,ui->chatText->toPlainText());
+        qint8 cmd = 0x12;
+        sendProtocol(cmd,chatData);
+        writeLog(cmd,chatData,logFilePath);
+        ui-> chatText -> clear();
+    }
 
-    writeLog(testCMD,testData,logFilePath);
 }
 
+void MainWindow::sendProtocol(quint8 CMD, QString dataStr)
+{
+    QByteArray data = dataStr.toUtf8();
+    QByteArray packet;
+    quint8 STX = 0x02;
+
+    quint16 len = data.size();
+    quint8 ETX = 0x03;
+
+    packet.append(STX);
+    packet.append(CMD);
+
+    packet.append(static_cast<char>(len & 0xFF));
+    packet.append(static_cast<char>((len >> 8) & 0xFF));
+
+    packet.append(data);
+
+    quint8 lenL = len & 0xFF;
+    quint8 lenH = (len >> 8) & 0xFF;
+    quint32 sum = CMD + lenH + lenL;
+
+
+    // 기존 c:data 였지만 std::as_const(data) 로 변경 : 이유 - for문에서 data를 수정하지않으려는 안정장치. 기능적차이 x 코드 안정성 상승
+    for (unsigned char c : std::as_const(data))
+        sum += c;
+
+    quint8 checksum = static_cast<quint8>(sum % 256);
+
+    packet.append(checksum);
+    packet.append(ETX);
+
+    socket->write(packet);
+    socket->flush();
+
+
+}
