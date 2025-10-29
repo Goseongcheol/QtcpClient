@@ -22,11 +22,12 @@ private slots:
     void connected();
     void readyRead();
 
-    void writeLog(quint8 CMD, QString data, const QString& filePath);
+    void writeLog(quint8 CMD, QString data);
 
     void on_loginButton_clicked();
     void on_sendButton_clicked();
     void sendProtocol(quint8 CMD, QString datastr);
+    // void sendProtocol(quint8 CMD, QString ID, QString NAME);
 
 private:
     Ui::MainWindow *ui;

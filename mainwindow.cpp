@@ -72,7 +72,7 @@ void MainWindow::on_loginButton_clicked()
         ui->statusLabel->setText("연결 해제");
         ui->loginButton->setText("로그인");
         isLogin = false;
-        writeLog(disConCmd,logoutData,logFilePath);
+        writeLog(disConCmd,logoutData);
         //
         //여기에 타이머 비활성화(그냥 없애기)
         //
@@ -92,7 +92,7 @@ void MainWindow::connected()
 
     sendProtocol(CMD,dataStr);
 
-    writeLog(CMD,dataStr,logFilePath);
+    writeLog(CMD,dataStr);
 
 }
 
@@ -111,7 +111,7 @@ void MainWindow::readyRead()
 
 // 로그 표시 ( ui + 로그파일 같이 작성) 매개변수에 필요한 정보들 추려서 추가 ex) cmd ,data
 // 2025-10-27 CMD는 추가 완료
-void MainWindow::writeLog(quint8 cmd, QString data, const QString& filePath)
+void MainWindow::writeLog(quint8 cmd, QString data)
 {
     //data 처리 방식이나 후반 작성 해보다가 switch 고려중
 
@@ -152,11 +152,11 @@ void MainWindow::writeLog(quint8 cmd, QString data, const QString& filePath)
     ui->logText->append(uiLogData);
 
     //로그파일 열고 적기
-    QFileInfo fileInfo(filePath);
+    QFileInfo fileInfo(logFilePath);
     QDir dir;
     dir.mkpath(fileInfo.path());
 
-    QFile File(filePath);
+    QFile File(logFilePath);
 
     if (File.open(QFile::WriteOnly | QFile::Append | QFile::Text))
     {
@@ -184,7 +184,7 @@ void MainWindow::on_sendButton_clicked()
                                                ui->chatText->toPlainText());
         qint8 cmd = 0x12;
         sendProtocol(cmd,chatData);
-        writeLog(cmd,chatData,logFilePath);
+        writeLog(cmd,chatData);
         ui-> chatText -> clear();
     }
 
@@ -233,3 +233,48 @@ void MainWindow::sendProtocol(quint8 CMD, QString dataStr)
     socket->write(packet);
     socket->flush();
 }
+
+// void MainWindow::sendProtocol(quint8 CMD, QString ID, QString Name)
+// {
+//     QByteArray data = "";
+//     QByteArray packet;
+//     quint8 STX = 0x02;
+
+//     quint16 len = data.size();
+
+//     quint8 ETX = 0x03;
+
+//     packet.append(STX);
+//     packet.append(CMD);
+
+
+//     //append 는 1바이트만 들어감 그래서 서버에서 인식이 안됨.
+//     //packet.append(len);
+
+//     packet.append((len >> 8) & 0xFF);
+//     packet.append(len & 0xFF);
+
+//     //여기서 data는 QByteArray로 지정해놔서 1바이트가 아닌데도 append 사용가능
+//     packet.append(data);
+
+//     //체크섬 계산 LEN_L 하위 8비트 , LEN_H 상위 8비트
+//     //0xFF = 11111111 로 LEN_L과 LEN_H와 AND연산하여 정해진 8비트만 추출, LEN_H같은 경우 LEN >> 8 로도 상위 8비트를 추출가능하지만 안정성을 위해 한번더 AND연산으로 확실한 상위8비트 추출
+//     quint8 lenL = len & 0xFF;
+//     quint8 lenH = (len >> 8) & 0xFF;
+//     quint32 sum = CMD + lenH + lenL ;
+
+//     // data의 크기를 순수 바이트 처리용 unsigned char로 for문을 돌려서 하나씩 크기를 더함 기존 sum에다가
+//     for (unsigned char c : std::as_const(data)) {
+//         sum += c;
+//     }
+
+//     //체크섬 크기 1바이트 로 quint8
+//     quint8 checksum = static_cast<quint8>(sum % 256);
+
+//     packet.append(checksum);
+//     packet.append(ETX);
+
+//     socket->write(packet);
+//     socket->flush();
+// }
+
