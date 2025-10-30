@@ -73,6 +73,8 @@ void MainWindow::on_loginButton_clicked()
         ui->loginButton->setText("로그인");
         isLogin = false;
         writeLog(disConCmd,logoutData);
+        ui->userTableWidget->clearContents();
+        ui->userTableWidget->setRowCount(0);
         //
         //여기에 타이머 비활성화(그냥 없애기)
         //
@@ -95,10 +97,10 @@ void MainWindow::readyRead()
 
     // 패킷 형식(사이즈로) 검증
     if (packet.size() < 1 + 1 + 2 + LEN + 1 + 1) {
-        qDebug() << "packet size error";
         ackOrNack(client,0x09,0x01,0x07);
         return;
     }
+
 
     QByteArray data = packet.mid(4, LEN);
     quint8 checksum = quint8(packet[4 + LEN]);
@@ -112,7 +114,6 @@ void MainWindow::readyRead()
 
     // STX, ETX 검증
     if(STX != 2 || ETX != 3){
-        qDebug() << "STX OR ETX error";
         ackOrNack(client,0x09,0x01,0x06);
         return;
     }
@@ -120,21 +121,47 @@ void MainWindow::readyRead()
     // 받은 checksum과 계산한 checksum 확인하기
     if(checksum != calChecksum)
     {
-        qDebug() << "checksum error";
-       ackOrNack(client,0x09,0x01,0x01);
+        ackOrNack(client,0x09,0x01,0x01);
         return;
     }
     // CMD 에 맞게 따로 처리
     switch (CMD){
     // CONNECT (0x01)
     case 2 :{
+        //user_list
+        QByteArray userCount = data.mid(0,1).trimmed();
 
-        //USER_LIST
+
+        for (auto it = 0; it !=userCount; ++it)
+        {
+            int packetSize = 37;
+            int base = it *packetSize ;
+            QByteArray ID   = data.mid(base + 1, 4).trimmed();
+            QByteArray NAME = data.mid(base + 5, 16).trimmed();
+            QByteArray IP   = data.mid(base + 21, 15).trimmed();
+            QByteArray portBytes = data.mid(base + 36, 2);
+            quint16 port = (quint8)portBytes[0] << 8 | (quint8)portBytes[1];
+
+            auto * userList =ui->userTableWidget;
+            const int row = userList->rowCount();
+            userList->insertRow(row);
+
+            userList->setItem(row, 0, new QTableWidgetItem(ID));
+            userList->setItem(row, 1, new QTableWidgetItem(NAME));
+            userList->setItem(row, 2, new QTableWidgetItem(IP));
+            userList->setItem(row, 3, new QTableWidgetItem(QString::number(port)));
+        }
+        QString joinData = QString("USER_LIST");
+
+        writeLog(0X02,joinData);
+
+        ackOrNack(client,0x08,0x02,0x00);
 
         break;
     }
     case 3 :
     {
+        //user_join
         try{
         QByteArray ID   = data.mid(0, 4).trimmed();
         QByteArray NAME = data.mid(4, 16).trimmed();
@@ -143,9 +170,6 @@ void MainWindow::readyRead()
         quint16 port = (quint8)portBytes[0] << 8 | (quint8)portBytes[1];
 
         QString joinData = QString("%1|%2 USER JOIN!").arg(ID,NAME);
-
-
-        qDebug() << port ;
 
         auto * userList =ui->userTableWidget;
 
@@ -231,13 +255,8 @@ void MainWindow::readyRead()
     case 18 :
     {
         //chat으로 메세지 송수신 + 브로드캐스트
-        qDebug() << "real DATA:" << data;
-        qDebug() << "chat ";
-
-        QString ID = data.mid(0,4);
-        QString MSG = data.mid(4);
-
-        //ID와 MSG 로 받은 메세지 구분해서 처리하기
+        QString ID = data.mid(0,16).trimmed();
+        QString MSG = data.mid(16);
 
         QString chatLogData = QString("%1:%2").arg(ID,MSG);
 
@@ -249,15 +268,10 @@ void MainWindow::readyRead()
     }
     default :
     {
-        qDebug() << "none";
         break;
     }
     }
-    qDebug() << "readyRead end";
 }
-
-
-
 
 // 로그 표시 ( ui + 로그파일 같이 작성) 매개변수에 필요한 정보들 추려서 추가 ex) cmd ,data
 // 2025-10-27 CMD는 추가 완료
@@ -297,7 +311,6 @@ void MainWindow::writeLog(quint8 cmd, QString data)
                             .arg(logTime
                                , logCmd
                                , data);
-    // ui->logText->append(logTime + "[" + client_clientIp + ":" + client_clientPort + "]" + cmd + data );
 
     ui->logText->append(uiLogData);
 
@@ -321,21 +334,7 @@ void MainWindow::writeLog(quint8 cmd, QString data)
     }
 }
 
-//전송
-void MainWindow::on_sendButton_clicked()
-{
-    if(!isLogin)
-    {
-        //로그아웃 상태 채팅 보낼때 효과 추가하기
-    }else{
-        QString chatData = QString ("%1%2").arg(client_userId,
-                                               ui->chatText->toPlainText());
-        qint8 cmd = 0x12;
-        sendProtocol(cmd,chatData);
-        writeLog(cmd,chatData);
-        ui-> chatText -> clear();
-    }
-}
+
 
 void MainWindow::connected()
 {
@@ -354,9 +353,6 @@ void MainWindow::connected()
     else nameBytes.append(QByteArray(16 - nameBytes.size(), ' '));
 
     QByteArray data = idBytes + nameBytes;  // 총 20바이트
-
-    qDebug() << data;
-    qDebug() << idBytes;
 
     sendProtocol(CMD,data);
     writeLog(CMD,data);
@@ -402,8 +398,83 @@ void MainWindow::sendProtocol(quint8 CMD, QString dataStr)
     packet.append(ETX);
 
     socket->write(packet);
-    socket->flush();
+    // socket->flush();
 }
+
+
+//전송
+void MainWindow::on_sendButton_clicked()
+{
+    if(!isLogin)
+    {
+        //로그아웃 상태 채팅 보낼때 효과 추가하기
+    }else{
+
+
+        QByteArray nameBytes = client_userName.toUtf8();
+        if (nameBytes.size() > 16)
+        {
+            nameBytes.truncate(16);
+        }
+        else
+        {
+            nameBytes.append(QByteArray(16 - nameBytes.size(), ' '));
+        }
+        QString chatData = ui->chatText->toPlainText();
+        QString logData = QString("%1 : %2").arg(client_userName,
+                                                 ui->chatText->toPlainText());
+        qint8 cmd = 0x12;
+        sendProtocol(cmd,nameBytes,chatData);
+        writeLog(cmd,logData);
+        ui-> chatText -> clear();
+    }
+}
+
+//
+void MainWindow::sendProtocol(quint8 CMD, QByteArray nameBytes, QString dataStr)
+{
+    QByteArray chatBytes = dataStr.toUtf8();
+    QByteArray packet;
+    quint8 STX = 0x02;
+    QByteArray data = nameBytes + chatBytes;
+
+    quint16 len = data.size();
+
+    quint8 ETX = 0x03;
+
+    packet.append(STX);
+    packet.append(CMD);
+
+    //append 는 1바이트만 들어감 그래서 서버에서 인식이 안됨.
+    //packet.append(len);
+
+    packet.append((len >> 8) & 0xFF);
+    packet.append(len & 0xFF);
+
+    //여기서 data는 QByteArray로 지정해놔서 1바이트가 아닌데도 append 사용가능
+    packet.append(data);
+
+    //체크섬 계산 LEN_L 하위 8비트 , LEN_H 상위 8비트
+    //0xFF = 11111111 로 LEN_L과 LEN_H와 AND연산하여 정해진 8비트만 추출, LEN_H같은 경우 LEN >> 8 로도 상위 8비트를 추출가능하지만 안정성을 위해 한번더 AND연산으로 확실한 상위8비트 추출
+    quint8 lenL = len & 0xFF;
+    quint8 lenH = (len >> 8) & 0xFF;
+    quint32 sum = CMD + lenH + lenL ;
+
+    // data의 크기를 순수 바이트 처리용 unsigned char로 for문을 돌려서 하나씩 크기를 더함 기존 sum에다가
+    for (unsigned char c : std::as_const(data)) {
+        sum += c;
+    }
+
+    //체크섬 크기 1바이트 로 quint8
+    quint8 checksum = static_cast<quint8>(sum % 256);
+
+    packet.append(checksum);
+    packet.append(ETX);
+
+    socket->write(packet);
+    // socket->flush();
+}
+
 
 
 void MainWindow::ackOrNack(QTcpSocket* client, quint8 cmd, quint8 refCMD, quint8 code)
@@ -433,7 +504,7 @@ void MainWindow::ackOrNack(QTcpSocket* client, quint8 cmd, quint8 refCMD, quint8
     packet.append(ETX); // ETX
 
     client->write(packet);
-    client->flush();
+    // client->flush();
 }
 
 

@@ -27,6 +27,7 @@ private slots:
     void on_loginButton_clicked();
     void on_sendButton_clicked();
     void sendProtocol(quint8 CMD, QString datastr);
+    void sendProtocol(quint8 CMD, QByteArray nameBytes, QString dataStr);
     // void sendProtocol(quint8 CMD, QString ID, QString NAME);
 
 private:
