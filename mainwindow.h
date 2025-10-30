@@ -41,5 +41,6 @@ private:
     QString client_userId;
     QString client_userName;
     QString logFilePath;
+    void ackOrNack(QTcpSocket* client, quint8 cmd, quint8 refCMD, quint8 code);
 };
 #endif // MAINWINDOW_H

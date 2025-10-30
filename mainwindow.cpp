@@ -81,10 +81,6 @@ void MainWindow::on_loginButton_clicked()
 
 void MainWindow::readyRead()
 {
-    //
-    // 추가할 내용
-    // USER_LIST, USER_JOIN, USER_LEAVE,CHAT_MSG,Ack,Nack 각각 처리하기
-    //
 
     QTcpSocket *client = qobject_cast<QTcpSocket*>(sender());
     if (!client) return;
@@ -100,28 +96,24 @@ void MainWindow::readyRead()
     // 패킷 형식(사이즈로) 검증
     if (packet.size() < 1 + 1 + 2 + LEN + 1 + 1) {
         qDebug() << "packet size error";
-        //
-        // nack 보내기
-        //
+        ackOrNack(client,0x09,0x01,0x07);
         return;
     }
 
     QByteArray data = packet.mid(4, LEN);
-    quint8 checksum = static_cast<quint8>(packet[4 + LEN]);
-    quint8 ETX      = static_cast<quint8>(packet[5 + LEN]);
+    quint8 checksum = quint8(packet[4 + LEN]);
+    quint8 ETX      = quint8(packet[5 + LEN]);
 
     // 체크섬 계산 (클라이언트와 동일)
     quint32 sum = CMD + lenH + lenL;
     for (unsigned char c : data)
         sum += c;
-    quint8 calChecksum = static_cast<quint8>(sum % 256);
+    quint8 calChecksum = quint8(sum % 256);
 
     // STX, ETX 검증
     if(STX != 2 || ETX != 3){
         qDebug() << "STX OR ETX error";
-        //
-        // nack보내기
-        //
+        ackOrNack(client,0x09,0x01,0x06);
         return;
     }
 
@@ -129,9 +121,7 @@ void MainWindow::readyRead()
     if(checksum != calChecksum)
     {
         qDebug() << "checksum error";
-        //
-        // nack보내기
-        //
+       ackOrNack(client,0x09,0x01,0x01);
         return;
     }
     // CMD 에 맞게 따로 처리
@@ -139,55 +129,106 @@ void MainWindow::readyRead()
     // CONNECT (0x01)
     case 2 :{
 
+        //USER_LIST
+
         break;
     }
     case 3 :
     {
-
+        try{
         QByteArray ID   = data.mid(0, 4).trimmed();
         QByteArray NAME = data.mid(4, 16).trimmed();
         QByteArray IP   = data.mid(20, 15).trimmed();
-        QByteArray PORT = data.mid(35, 2).trimmed();
+        QByteArray portBytes = data.mid(35, 2);
+        quint16 port = (quint8)portBytes[0] << 8 | (quint8)portBytes[1];
 
-        qDebug() << "ID : " << ID ;
-        qDebug() << "NAME : " << NAME ;
-        qDebug() << "IP : " << IP ;
-        qDebug() << "PORT : " << PORT ;
+        QString joinData = QString("%1|%2 USER JOIN!").arg(ID,NAME);
 
 
-        // 필드 해석
+        qDebug() << port ;
 
+        auto * userList =ui->userTableWidget;
+
+        const int row = userList->rowCount();
+        userList->insertRow(row);
+
+        userList->setItem(row, 0, new QTableWidgetItem(ID));
+        userList->setItem(row, 1, new QTableWidgetItem(NAME));
+        userList->setItem(row, 2, new QTableWidgetItem(IP));
+        userList->setItem(row, 3, new QTableWidgetItem(QString::number(port)));
+
+        writeLog(0X03,joinData);
+
+        ackOrNack(client,0x08,0x03,0x00);
+
+        }catch(std::exception e){
+                ackOrNack(client,0x09,0x03,0x06);
+        }
 
         break;
     }
     case 4 :
     {
-        //Nack
-        qDebug() << "nack";
+
+        QByteArray ID   = data.mid(0, 4).trimmed();
+
+        auto *userList = ui->userTableWidget;
+
+        for (int row = 0; row < userList->rowCount(); ++row) {
+            QTableWidgetItem *item = userList->item(row, 0); // 0번 컬럼이 ID 컬럼
+            if (item && item->text() == ID) {
+                userList->removeRow(row);
+                break; // 하나만 지우면 됨
+            }
+        }
+
+
+        QString leaveData = QString("%1 USER LEAVE!").arg(ID);
+
+        writeLog(0X04,leaveData);
+
+        ackOrNack(client,0x08,0x04,0x00);
 
         break;
     }
     case 8 :
     {
-        qDebug() << "ACK message" ;
-
-        qDebug() << packet;
-
-        qDebug() << data;
-
+        quint8 ackCMD = quint8(packet[4]);
+        QString ackMessage = "해당 CMD 성공";
+        writeLog(ackCMD, ackMessage);
         break;
     }
     case 9 :
     {
-        qDebug() << "NACK message" ;
-
-        qDebug() << packet;
-
-        qDebug() << data;
-
+        quint8 nackCMD = quint8(packet[4]);
+        quint8 nackErrorCode = quint8(packet[5]);
+        if(nackErrorCode == 1)
+        {
+            QString nackMessage = "checksum error";
+            writeLog(nackCMD, nackMessage);
+        }else if(nackErrorCode == 2)
+        {
+            QString nackMessage = "Unknown CMD";
+            writeLog(nackCMD, nackMessage);
+        }else if(nackErrorCode == 3)
+        {
+            QString nackMessage = "Invalid Data";
+            writeLog(nackCMD, nackMessage);
+        }else if(nackErrorCode == 4)
+        {
+            QString nackMessage = "Time Out";
+            writeLog(nackCMD, nackMessage);
+        }else if(nackErrorCode == 5)
+        {
+            QString nackMessage = "Permossion Denied";
+            writeLog(nackCMD, nackMessage);
+        }else{
+            QString nackMessage = "undefind code";
+            writeLog(nackCMD, nackMessage);
+        }
         break;
-    }
-    case 12 :
+   }
+    case 18 :
     {
         //chat으로 메세지 송수신 + 브로드캐스트
         qDebug() << "real DATA:" << data;
@@ -202,11 +243,7 @@ void MainWindow::readyRead()
 
         writeLog(CMD,chatLogData);
 
-
-        //
-        // 받은 메세지 처리하기 추가 전체 클라이언트에게 브로드캐스트
-        //
-
+        ackOrNack(client,0x08,0x01,0x00);
 
         break;
     }
@@ -367,4 +404,37 @@ void MainWindow::sendProtocol(quint8 CMD, QString dataStr)
     socket->write(packet);
     socket->flush();
 }
+
+
+void MainWindow::ackOrNack(QTcpSocket* client, quint8 cmd, quint8 refCMD, quint8 code)
+{
+    QByteArray data;
+    data.append(refCMD);
+    data.append(code);
+
+    quint16 len = data.size();
+
+    quint8 STX = 0x02;
+    quint8 ETX = 0x03;
+
+    QByteArray packet;
+    packet.append(STX);
+    packet.append(cmd);
+    packet.append((char)((len >> 8) & 0xFF));
+    packet.append((char)(len & 0xFF));
+    packet.append(data);
+
+    quint32 sum = cmd + ((len >> 8) & 0xFF) + (len & 0xFF);
+    for (unsigned char c : data)
+        sum += c;
+
+    quint8 checksum = sum % 256;
+    packet.append(checksum);
+    packet.append(ETX); // ETX
+
+    client->write(packet);
+    client->flush();
+}
+
+
 
