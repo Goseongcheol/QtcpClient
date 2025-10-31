@@ -209,10 +209,6 @@ void MainWindow::readyRead()
 
         ackOrNack(client, 0x08, 0x03, 0x00);
 
-        // }catch(std::exception e){
-        //         ackOrNack(client,0x09,0x03,0x06);
-        // }
-
         break;
     }
     case 4 :
@@ -362,47 +358,18 @@ void MainWindow::writeLog(quint8 cmd, QString data)
 
 void MainWindow::connected()
 {
-    ui->statusLabel->setText("연결 중");
+
+    qDebug() << "reconnect";
     ui->loginButton->setText("로그아웃");
+
     isLogin = true;
+    if (reconnectTimer) {
+        reconnectTimer->stop();
+        reconnectTimer->deleteLater();
+        reconnectTimer = nullptr;
+    }
 
-    //표시용 타이머
-    remainingTime = client_reconnectTime;
-    reconnectTimer = new QTimer(this);
-
-    connect(reconnectTimer, &QTimer::timeout, this, [this]() {
-        remainingTime--;
-
-        if (remainingTime <= 0) {
-
-            if (socket) {
-                socket->disconnectFromHost();
-                socket->close();
-                socket->deleteLater();
-                socket = nullptr;
-            }
-
-            // 윗부분이 재연결 시간이 경과하면 여기서 연결해제와 재 연결을 해서 밑의 reconnectTimer 이 누적돼서 다음 timer 가 한번에 2초씩 감소하는 현상으로 추가
-            if (reconnectTimer) {
-                reconnectTimer->stop();
-                reconnectTimer->deleteLater();
-                reconnectTimer = nullptr;
-            }
-
-            socket = new QTcpSocket(this);
-
-            connect(socket, &QTcpSocket::connected, this, &MainWindow::connected);
-            connect(socket, &QTcpSocket::readyRead, this, &MainWindow::readyRead);
-
-            socket->connectToHost(QHostAddress(client_serverIp), client_serverPort);
-            remainingTime = client_reconnectTime;
-        }
-
-        ui->reconnectLabel->setText(
-            QString("재연결까지 남은 시간: %1초").arg(remainingTime));
-    });
-
-    reconnectTimer->start(1000);
+    ui->reconnectLabel->setText("");
 
     quint8 CMD = 0x01;
 
@@ -571,19 +538,42 @@ void MainWindow::ackOrNack(QTcpSocket* client, quint8 cmd, quint8 refCMD, quint8
 
 void MainWindow::connectFail()
 {
-
     ui->statusLabel->setText("연결 실패");
     ui->loginButton->setText("로그인");
     isLogin = false;
     ui->userTableWidget->clearContents();
     ui->userTableWidget->setRowCount(0);
 
-    if (reconnectTimer) {
-        reconnectTimer->stop();
-        reconnectTimer->deleteLater();
-        reconnectTimer = nullptr;
-    }
-    ui->reconnectLabel->clear();
+    remainingTime = client_reconnectTime;
+    reconnectTimer = new QTimer(this);
+
+    connect(reconnectTimer, &QTimer::timeout, this, [this]() {
+        remainingTime--;
+
+        if (remainingTime <= 0) {
+
+            // 윗부분이 재연결 시간이 경과하면 여기서 연결해제와 재 연결을 해서 밑의 reconnectTimer 이 누적돼서 다음 timer 가 한번에 2초씩 감소하는 현상으로 추가
+            if (reconnectTimer) {
+                reconnectTimer->stop();
+                reconnectTimer->deleteLater();
+                reconnectTimer = nullptr;
+            }
+
+            socket = new QTcpSocket(this);
+
+            connect(socket, &QTcpSocket::connected, this, &MainWindow::connected);
+            connect(socket, &QTcpSocket::readyRead, this, &MainWindow::readyRead);
+            connect(socket, &QTcpSocket::errorOccurred, this, &MainWindow::connectFail);
+
+            socket->connectToHost(QHostAddress(client_serverIp), client_serverPort);
+            remainingTime = client_reconnectTime;
+        }
+
+        ui->reconnectLabel->setText(
+            QString("재연결까지 남은 시간: %1초").arg(remainingTime));
+    });
+
+    reconnectTimer->start(1000);
 
     if (socket) {
         socket->deleteLater();
