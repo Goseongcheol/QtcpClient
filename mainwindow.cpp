@@ -54,41 +54,6 @@ void MainWindow::on_loginButton_clicked()
         connect(socket, &QTcpSocket::errorOccurred, this, &MainWindow::connectFail);
 
         socket->connectToHost(QHostAddress(client_serverIp), client_serverPort);
-        // ui->statusLabel->setText("연결 중");
-        // ui->loginButton->setText("로그아웃");
-        // isLogin = true;
-
-        // //표시용 타이머
-        // remainingTime = 30;
-        // reconnectTimer = new QTimer(this);
-
-        // connect(reconnectTimer, &QTimer::timeout, this, [this]() {
-        //     remainingTime--;
-
-        //     if (remainingTime <= 0) {
-
-        //         if (socket) {
-        //             socket->disconnectFromHost();
-        //             socket->close();
-        //             socket->deleteLater();
-        //             socket = nullptr;
-        //         }
-
-        //         socket = new QTcpSocket(this);
-
-        //         connect(socket, &QTcpSocket::connected, this, &MainWindow::connected);
-        //         connect(socket, &QTcpSocket::readyRead, this, &MainWindow::readyRead);
-
-        //         socket->connectToHost(QHostAddress(client_serverIp), client_serverPort);
-        //         remainingTime = 30; // 다시 리셋
-        //     }
-
-        //     ui->reconnectLabel->setText(
-        //         QString("재연결까지 남은 시간: %1초").arg(remainingTime));
-        // });
-
-        // reconnectTimer->start(1000);
-
     }else{
         quint8 disConCmd = 0x13;
         QString logoutData = QString("%1%2")
@@ -321,7 +286,7 @@ void MainWindow::readyRead()
 
         writeLog(CMD,chatLogData);
 
-        ackOrNack(client,0x08,0x01,0x00);
+        ackOrNack(client,0x08,0x12,0x00);
 
         break;
     }
@@ -415,6 +380,13 @@ void MainWindow::connected()
                 socket->close();
                 socket->deleteLater();
                 socket = nullptr;
+            }
+
+            // 윗부분이 재연결 시간이 경과하면 여기서 연결해제와 재 연결을 해서 밑의 reconnectTimer 이 누적돼서 다음 timer 가 한번에 2초씩 감소하는 현상으로 추가
+            if (reconnectTimer) {
+                reconnectTimer->stop();
+                reconnectTimer->deleteLater();
+                reconnectTimer = nullptr;
             }
 
             socket = new QTcpSocket(this);
