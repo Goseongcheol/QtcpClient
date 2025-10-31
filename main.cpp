@@ -55,9 +55,10 @@ int main(int argc, char *argv[])
     settings.beginGroup("USERINFO");
     QString userId = settings.value("USERID").toString();
     QString userName = settings.value("USERNAME").toString();
+    quint16 reconnectTime = static_cast<quint16>(settings.value("RECONNECT").toUInt());
     settings.endGroup();
 
-    MainWindow w(serverIp,serverPort,clientIp,clientPort,userId,userName,fullPath);
+    MainWindow w(serverIp,serverPort,clientIp,clientPort,userId,userName,fullPath, reconnectTime);
     w.show();
 
     return a.exec();

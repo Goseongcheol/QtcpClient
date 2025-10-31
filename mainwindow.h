@@ -15,12 +15,13 @@ class MainWindow : public QMainWindow
     Q_OBJECT
 
 public:
-    MainWindow(const QString& serverIp, quint16 serverPort, const QString& clientIp, quint16 clientPort, QString userId, QString userName, const QString& filePath, QWidget *parent = nullptr);
+    MainWindow(const QString& serverIp, quint16 serverPort, const QString& clientIp, quint16 clientPort, QString userId, QString userName, const QString& filePath,  quint16 reconnectTime, QWidget *parent = nullptr);
     ~MainWindow();
 
 private slots:
     void connected();
     void readyRead();
+    void connectFail();
 
     void writeLog(quint8 CMD, QString data);
 
@@ -34,6 +35,9 @@ private:
     Ui::MainWindow *ui;
     QTcpSocket *socket;
 
+    QTimer *reconnectTimer = nullptr;
+    int remainingTime ;
+    quint16 client_reconnectTime;
     bool isLogin = false;
     QString client_serverIp;
     quint16 client_serverPort;

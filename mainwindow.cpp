@@ -8,7 +8,7 @@
 #include <QTextEdit>
 #include <QTimer>
 
-MainWindow::MainWindow(const QString& serverIp, quint16 serverPort, const QString& clientIp, quint16 clientPort, QString userId, QString userName,  const QString& filePath, QWidget *parent)
+MainWindow::MainWindow(const QString& serverIp, quint16 serverPort, const QString& clientIp, quint16 clientPort, QString userId, QString userName,  const QString& filePath, quint16 reconnectTime, QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
 
@@ -24,6 +24,8 @@ MainWindow::MainWindow(const QString& serverIp, quint16 serverPort, const QStrin
     client_userId = userId; // 정보전송시
     client_userName = userName; // 정보전송시
     logFilePath = filePath; // 로그 파일 기록용 경로
+    client_reconnectTime = reconnectTime;
+
 }
 
 MainWindow::~MainWindow()
@@ -49,19 +51,45 @@ void MainWindow::on_loginButton_clicked()
 
         connect(socket, &QTcpSocket::connected, this, &MainWindow::connected);
         connect(socket, &QTcpSocket::readyRead, this, &MainWindow::readyRead);
-        // connect(socket, &QTcpSocket::errorOccurred, this, &MainWindow::onErrorOccurred);
+        connect(socket, &QTcpSocket::errorOccurred, this, &MainWindow::connectFail);
 
-        // qDebug() << "Connecting to server:" << client_serverIp << ":" << client_serverPort;
         socket->connectToHost(QHostAddress(client_serverIp), client_serverPort);
-        ui->statusLabel->setText("연결 중");
-        ui->loginButton->setText("로그아웃");
-        isLogin = true;
-        //
-        //여기에 타이머? 활성화 추가( 접속후 자동 재연결 시도)
-        //
+        // ui->statusLabel->setText("연결 중");
+        // ui->loginButton->setText("로그아웃");
+        // isLogin = true;
+
+        // //표시용 타이머
+        // remainingTime = 30;
+        // reconnectTimer = new QTimer(this);
+
+        // connect(reconnectTimer, &QTimer::timeout, this, [this]() {
+        //     remainingTime--;
+
+        //     if (remainingTime <= 0) {
+
+        //         if (socket) {
+        //             socket->disconnectFromHost();
+        //             socket->close();
+        //             socket->deleteLater();
+        //             socket = nullptr;
+        //         }
+
+        //         socket = new QTcpSocket(this);
+
+        //         connect(socket, &QTcpSocket::connected, this, &MainWindow::connected);
+        //         connect(socket, &QTcpSocket::readyRead, this, &MainWindow::readyRead);
+
+        //         socket->connectToHost(QHostAddress(client_serverIp), client_serverPort);
+        //         remainingTime = 30; // 다시 리셋
+        //     }
+
+        //     ui->reconnectLabel->setText(
+        //         QString("재연결까지 남은 시간: %1초").arg(remainingTime));
+        // });
+
+        // reconnectTimer->start(1000);
 
     }else{
-        // 위치 조정 생각해보기
         quint8 disConCmd = 0x13;
         QString logoutData = QString("%1%2")
                               .arg(client_userId
@@ -75,9 +103,13 @@ void MainWindow::on_loginButton_clicked()
         writeLog(disConCmd,logoutData);
         ui->userTableWidget->clearContents();
         ui->userTableWidget->setRowCount(0);
-        //
-        //여기에 타이머 비활성화(그냥 없애기)
-        //
+
+        if (reconnectTimer) {
+            reconnectTimer->stop();
+            reconnectTimer->deleteLater();
+            reconnectTimer = nullptr;
+        }
+        ui->reconnectLabel->clear();
     }
 }
 
@@ -129,6 +161,9 @@ void MainWindow::readyRead()
     // CONNECT (0x01)
     case 2 :{
         //user_list
+        ui->userTableWidget->clearContents();
+        ui->userTableWidget->setRowCount(0);
+
         QByteArray userCount = data.mid(0,1).trimmed();
 
 
@@ -162,32 +197,56 @@ void MainWindow::readyRead()
     case 3 :
     {
         //user_join
-        try{
+        // try{
+        // user_join
         QByteArray ID   = data.mid(0, 4).trimmed();
         QByteArray NAME = data.mid(4, 16).trimmed();
         QByteArray IP   = data.mid(20, 15).trimmed();
         QByteArray portBytes = data.mid(35, 2);
         quint16 port = (quint8)portBytes[0] << 8 | (quint8)portBytes[1];
 
-        QString joinData = QString("%1|%2 USER JOIN!").arg(ID,NAME);
+        QString idStr   = QString::fromUtf8(ID);
+        QString nameStr = QString::fromUtf8(NAME);
+        QString ipStr   = QString::fromUtf8(IP);
 
-        auto * userList =ui->userTableWidget;
+        auto *userList = ui->userTableWidget;
 
-        const int row = userList->rowCount();
-        userList->insertRow(row);
+        //테이블에서 userlist 행 찾기
+        int foundRow = -1;
+        for (int r = 0; r < userList->rowCount(); ++r) {
+            QTableWidgetItem *idItem = userList->item(r, 0);
+            if (!idItem) continue;
 
-        userList->setItem(row, 0, new QTableWidgetItem(ID));
-        userList->setItem(row, 1, new QTableWidgetItem(NAME));
-        userList->setItem(row, 2, new QTableWidgetItem(IP));
-        userList->setItem(row, 3, new QTableWidgetItem(QString::number(port)));
-
-        writeLog(0X03,joinData);
-
-        ackOrNack(client,0x08,0x03,0x00);
-
-        }catch(std::exception e){
-                ackOrNack(client,0x09,0x03,0x06);
+            if (idItem->text() == idStr) {
+                foundRow = r;
+                break;
+            }
         }
+
+        //찾았으면 업데이트
+        if (foundRow >= 0) {
+            userList->setItem(foundRow, 1, new QTableWidgetItem(nameStr));
+            userList->setItem(foundRow, 2, new QTableWidgetItem(ipStr));
+            userList->setItem(foundRow, 3, new QTableWidgetItem(QString::number(port)));
+        } else {
+        //없으면 새로 추가
+            const int row = userList->rowCount();
+            userList->insertRow(row);
+
+            userList->setItem(row, 0, new QTableWidgetItem(idStr));
+            userList->setItem(row, 1, new QTableWidgetItem(nameStr));
+            userList->setItem(row, 2, new QTableWidgetItem(ipStr));
+            userList->setItem(row, 3, new QTableWidgetItem(QString::number(port)));
+        }
+
+        QString joinData = QString("%1|%2 USER JOIN!").arg(idStr, nameStr);
+        writeLog(0x03, joinData);
+
+        ackOrNack(client, 0x08, 0x03, 0x00);
+
+        // }catch(std::exception e){
+        //         ackOrNack(client,0x09,0x03,0x06);
+        // }
 
         break;
     }
@@ -338,10 +397,41 @@ void MainWindow::writeLog(quint8 cmd, QString data)
 
 void MainWindow::connected()
 {
-    //.arg는 3개씩 묶기 아니면 거슬리게 경고창 나옴
-    // QString dataStr = QString("%1%2")
-    //                       .arg(client_userId,
-    //                            client_userName);
+    ui->statusLabel->setText("연결 중");
+    ui->loginButton->setText("로그아웃");
+    isLogin = true;
+
+    //표시용 타이머
+    remainingTime = client_reconnectTime;
+    reconnectTimer = new QTimer(this);
+
+    connect(reconnectTimer, &QTimer::timeout, this, [this]() {
+        remainingTime--;
+
+        if (remainingTime <= 0) {
+
+            if (socket) {
+                socket->disconnectFromHost();
+                socket->close();
+                socket->deleteLater();
+                socket = nullptr;
+            }
+
+            socket = new QTcpSocket(this);
+
+            connect(socket, &QTcpSocket::connected, this, &MainWindow::connected);
+            connect(socket, &QTcpSocket::readyRead, this, &MainWindow::readyRead);
+
+            socket->connectToHost(QHostAddress(client_serverIp), client_serverPort);
+            remainingTime = client_reconnectTime;
+        }
+
+        ui->reconnectLabel->setText(
+            QString("재연결까지 남은 시간: %1초").arg(remainingTime));
+    });
+
+    reconnectTimer->start(1000);
+
     quint8 CMD = 0x01;
 
     QByteArray idBytes = client_userId.toUtf8();
@@ -407,7 +497,7 @@ void MainWindow::on_sendButton_clicked()
 {
     if(!isLogin)
     {
-        //로그아웃 상태 채팅 보낼때 효과 추가하기
+        ui-> chatText -> clear();
     }else{
 
 
@@ -505,6 +595,28 @@ void MainWindow::ackOrNack(QTcpSocket* client, quint8 cmd, quint8 refCMD, quint8
 
     client->write(packet);
     // client->flush();
+}
+
+void MainWindow::connectFail()
+{
+
+    ui->statusLabel->setText("연결 실패");
+    ui->loginButton->setText("로그인");
+    isLogin = false;
+    ui->userTableWidget->clearContents();
+    ui->userTableWidget->setRowCount(0);
+
+    if (reconnectTimer) {
+        reconnectTimer->stop();
+        reconnectTimer->deleteLater();
+        reconnectTimer = nullptr;
+    }
+    ui->reconnectLabel->clear();
+
+    if (socket) {
+        socket->deleteLater();
+        socket = nullptr;
+    }
 }
 
 
